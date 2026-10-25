@@ -1,0 +1,1 @@
+"""AwazRakshak backend package."""

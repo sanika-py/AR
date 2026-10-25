@@ -1,0 +1,13 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+exclude = [".venv", "frontend/node_modules", "frontend/dist", "Models", "models"]
+
+[tool.ruff.lint]
+select = ["E4", "E9", "F"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+check_untyped_defs = true
+files = ["backend/core/priority.py", "backend/core/signals.py", "backend/schemas.py"]

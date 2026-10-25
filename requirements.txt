@@ -1,9 +1,16 @@
 # Python 3.12; CPU-only, local inference
-streamlit==1.66.1
-streamlit-webrtc==0.63.11
+fastapi>=0.115,<1
+pydantic>=2,<3
+uvicorn[standard]>=0.34,<1
+SQLAlchemy>=2.0,<3
+alembic>=1.13,<2
+PyJWT>=2.8,<3
+psycopg[binary]>=3.2,<4
 numpy==2.5.4
 torch==2.14.1
 transformers==5.20.2
 soxr==1.1.0
 webrtcvad-wheels==2.0.14.post1
+rapidfuzz>=3.9,<4
+PyYAML>=6,<7
 pytest==8.4.2

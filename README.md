@@ -1,29 +1,71 @@
 # AwazRakshak
 
-AwazRakshak is a local, single-purpose Streamlit app: start browser-microphone capture, view uncalibrated voice-model scores as they arrive, then stop and save an audio-free call summary. Audio remains in a rolling in-memory buffer and is discarded when recording stops.
+AwazRakshak is a local React + Tailwind call dashboard backed by FastAPI. The browser captures microphone audio only after the officer confirms consent. It streams 16 kHz mono PCM16 to the local API, which runs the pinned model and keeps raw audio in a bounded in-memory buffer only. Emotion scores, derived indicators, and attention bands are advisory and uncalibrated.
 
 ## Setup
 
-Use Python 3.12 on Windows and install the pinned dependencies:
+Use Python 3.12 and Node.js 20 or newer. In PowerShell, from the repository root:
 
 ```powershell
 py -3.12 -m venv .venv
-.venv\Scripts\Activate.ps1
+.\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 ```
 
-## Run
+The model must already exist locally and pass the repository's pin and file-integrity checks. Point `AWAZRAKSHAK_MODEL_PATH` at the Hugging Face cache root or the snapshot directory containing `config.json`, `preprocessor_config.json`, and `model.safetensors`:
 
 ```powershell
-.\.venv\Scripts\python.exe -m streamlit run app.py
+$env:AWAZRAKSHAK_MODEL_PATH = 'C:\path\to\verified\snapshot'
 ```
 
-In the app, select the local model folder, confirm that you are authorised to analyse the call, and click **Start recording**. Allow microphone access in the browser. Click **Stop and save summary** when finished. The JSON summary is written to `.awazrakshak-data/summaries/` and can also be downloaded from the page. The summary contains no audio.
+The app does not download model files at runtime.
 
-## Pinned local model
+## Development
 
-The app never downloads model files. Enter either the Hugging Face cache root, the pinned revision's snapshot folder, or a folder containing `config.json`, `preprocessor_config.json`, and `model.safetensors`. AwazRakshak verifies the pinned model metadata and all three file hashes before enabling recording. A missing file, changed hash, incorrect label map, or mismatched revision disables analysis and displays the reason.
+Open two PowerShell terminals at the repository root.
 
-## Limitations
+Terminal 1, backend:
 
-Scores and derived indicators are uncalibrated and provisional. They support human review only and do not determine danger, deception, guilt, or dispatch.
+```powershell
+.\.venv\Scripts\Activate.ps1
+$env:AWAZRAKSHAK_MODEL_PATH = 'C:\path\to\verified\snapshot'
+python -m uvicorn server.main:app --port 8000
+```
+
+Terminal 2, frontend:
+
+```powershell
+cd frontend
+npm install
+$env:VITE_USE_MOCK = 'false'
+npm run dev
+```
+
+Open the Vite URL printed in the frontend terminal (normally `http://localhost:5173`). Its `/health` and WebSocket proxy targets the local API at port 8000. For mock dashboard mode, omit `VITE_USE_MOCK` or set it to `true`.
+
+## Production-style local run
+
+Build the frontend, return to the repository root, set the verified model path, then run one FastAPI process:
+
+```powershell
+cd frontend
+npm install
+npm run build
+cd ..
+$env:AWAZRAKSHAK_MODEL_PATH = 'C:\path\to\verified\snapshot'
+python -m uvicorn server.main:app --port 8000
+```
+
+FastAPI serves `frontend/dist/` at `/` and serves the health, WebSocket, and API routes from the same origin. Open `http://127.0.0.1:8000`.
+
+## Verification
+
+```powershell
+python -m pytest -v
+cd frontend
+npm install
+npm run build
+npm test
+```
+
+The summary REST endpoint stores only validated audio-free summary fields and requires an authenticated officer token. Current React action controls remain demo interactions. See [API.md](API.md), [SECURITY.md](SECURITY.md), and [LIMITATIONS.md](LIMITATIONS.md).

@@ -1,0 +1,3 @@
+# Optional local ASR; the faster-whisper package never downloads a model at runtime.
+-r requirements.txt
+faster-whisper>=1.1,<2

@@ -2,42 +2,38 @@
 
 ## Purpose
 
-AwazRakshak currently is a single-page Streamlit application for live voice-emotion screening during an authorised call. It shows uncalibrated model scores and provisional derived indicators to support human judgement. It does not decide danger, deception, guilt, or dispatch. The planned destination is a FastAPI backend with a React and Tailwind frontend; that migration has not happened yet.
+AwazRakshak is a local React dashboard backed by FastAPI for advisory voice-emotion signals. The browser requires recording consent before capturing audio. Scores are not calibrated measurements and never decide danger, deception, guilt, or dispatch.
 
 ## Current architecture
 
-- `app.py` provides the Streamlit interface, microphone consent, model availability check, live insight display, and audio-free summary save/download.
-- `live.py` keeps a bounded rolling audio buffer in process memory and runs inference on a background thread.
-- `engine.py` verifies and loads the pinned local model, screens audio windows, and validates the model score vector.
-- `signals.py` calculates provisional indicators, exponential smoothing, attention categories, and two-window hysteresis.
-- `config.py` is authoritative for model identity, labels, timing, weights, and provisional thresholds.
+- `frontend/` contains the Vite/React/TypeScript/Tailwind UI, demo data, typed API contract, tests, and microphone AudioWorklet.
+- `server/main.py` is the production ASGI entry point and serves a built `frontend/dist/` when available.
+- `backend/app.py` exposes health, PCM16 audio and event WebSockets, plus the REST router.
+- `live.py` is the reusable 30-second in-memory audio buffer and background inference pipeline. The backend and `tests/test_live.py` import it.
+- `engine.py` and `signals.py` are compatibility exports for `backend/core/engine.py` and `backend/core/signals.py`.
+- `backend/core/engine.py` verifies the pinned local model, screens audio, and validates scores. `backend/core/signals.py` derives/smooths indicators and applies two-window attention hysteresis.
+- `backend/core/priority.py` returns provisional P1-P4 advisory groupings, urgency scores, reasons, and approved guidance templates.
+- `backend/core/asr.py` provides optional local faster-whisper transcription, disabled by default. Transcript snapshots and keyword matches are memory-only.
+- `backend/routes.py`, SQLAlchemy models, and Alembic migrations implement audio-free calls, summaries, flags, notes, and audit entries.
+- `config.py` is authoritative for the model pin, labels, timing, indicator weights, and provisional thresholds.
+- `ml/` contains manually invoked offline dataset/training utilities. They are not called during live inference.
 
 ## Pinned model
 
-- Hugging Face model ID: `Dpngtm/wav2vec2-emotion-recognition`
-- Immutable revision: `033a5751a5bbe5b0b67c2c71e6102c38de35a346`
-- Expected raw model labels, in configured index order: `angry`, `calm`, `disgust`, `fearful`, `happy`, `sad`, `surprised`.
-- Inference is CPU-only and expects mono audio at 16 kHz. A local cache/snapshot path can be provided with `AWAZRAKSHAK_MODEL_PATH` or through the UI. Existing checks verify the pinned metadata and required model-file hashes. Missing or mismatched files disable analysis. Model files are not downloaded at runtime.
+- Model ID: `Dpngtm/wav2vec2-emotion-recognition`
+- Revision: `033a5751a5bbe5b0b67c2c71e6102c38de35a346`
+- Ordered labels: `angry`, `calm`, `disgust`, `fearful`, `happy`, `sad`, `surprised`.
+- Inference is CPU-only on mono 16 kHz samples. `AWAZRAKSHAK_MODEL_PATH` can point to the Hugging Face cache root or a snapshot directory. Existing pin and file-hash checks fail closed; runtime downloads are disabled.
 
 ## Live audio and indicators
 
-- The rolling in-memory buffer holds up to 30 seconds. The pipeline analyzes the latest 3-second window every 1.5 seconds.
-- Digital-silence windows are skipped. Other screened windows can be scored with quality flags; the UI marks low-confidence audio.
-- Derived indicators are not model classes:
-  - Distress = `0.50 * fearful + 0.30 * sad + 0.20 * angry`.
-  - Nervousness = `0.45 * fearful + 0.35 * surprised + 0.20 * min(rms_cv, 1)`, where `rms_cv` is the window's acoustic RMS coefficient of variation.
-- Indicator smoothing uses an EMA alpha of `0.35`.
-- Provisional attention bands use thresholds `0.35` (Elevated) and `0.65` (High), with two-window hysteresis. Routine is below the elevated threshold. These are engineering starting points, not validated decision thresholds.
+- In-memory ring buffer: 30 seconds maximum.
+- Analysis window: 3 seconds, updated every 1.5 seconds.
+- Digital silence is skipped; other quality-flagged windows can still be scored.
+- Distress = `0.50 * fearful + 0.30 * sad + 0.20 * angry`.
+- Nervousness = `0.45 * fearful + 0.35 * surprised + 0.20 * min(rms_cv, 1)`.
+- EMA alpha is `0.35`; provisional category thresholds are `0.35` Elevated and `0.65` High, with two-window hysteresis.
 
-## Privacy stance
+## Privacy and limitations
 
-Raw audio is processed from browser microphone frames in the app process, held only in the rolling in-memory buffer, and cleared when recording stops. The application does not write raw audio to disk or download model weights. It saves an audio-free JSON call summary under `.awazrakshak-data/summaries/` and offers that summary for download. A hosted deployment would transmit microphone audio from the browser to the host; the current local-processing stance assumes the app is run in a trusted local environment.
-
-## Current limitations
-
-- The product is still Streamlit; the FastAPI + React + Tailwind migration is pending.
-- Model outputs are uncalibrated and provisional. Emotion labels are raw classifier outputs, not reliable measurements of a caller's internal state.
-- Audio quality screening is heuristic and can flag ordinary speech or miss degraded audio. VAD availability affects its quality flags.
-- The current attention bands are provisional and are not scientifically validated.
-- The saved summary is intentionally compact: duration, analyzed-window count, final indicative category, peak indicators, quality flags, and model identity. It does not contain raw audio or a full per-window history.
-- The current app has no authentication, durable call database, or training/fine-tuning workflow.
+Raw live-call audio is processed only after consent, held in browser/process memory, and discarded when the live session ends. No database/API summary stores raw audio. Audio-free summaries and operator records may be saved locally through the REST API. Offline augmentation is a separate explicit dataset operation and may write derived WAV files. A remote API host receives the microphone stream. WebSocket authentication/session isolation and per-call read isolation are incomplete. Model signals and configured attention/priority thresholds are advisory, uncalibrated, and not scientifically validated.
