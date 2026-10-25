@@ -1,17 +1,13 @@
 # Deployment
 
-Source of truth: [BRAIN.md](BRAIN.md). The only implemented deployment target is a local Streamlit process.
+Source of truth: [BRAIN.md](BRAIN.md). The supported setup is local development or a production-style local FastAPI process serving the React build. This repository is not a hardened hosted deployment.
 
-## Current local operation
+## Development
 
-The Streamlit configuration binds to `127.0.0.1`. Start the app with `python -m streamlit run app.py` after installing `requirements.txt` and providing a verified local model snapshot. The large weight file is not tracked in this repository. Runtime model downloads are disabled, so deployments must provision the model separately through an approved local process and preserve the pin/hash checks.
+Install dependencies with `python -m pip install -r requirements.txt`, then start `python -m uvicorn server.main:app --port 8000` from the repository root. In a second terminal, run `cd frontend`, `npm install`, and `npm run dev`. Set `VITE_USE_MOCK=false` for microphone mode and point `AWAZRAKSHAK_MODEL_PATH` at an already-present verified model snapshot. Vite proxies `/health` and `/ws` to port 8000.
 
-## Hosting considerations
+## Production-style local run
 
-The current workflow captures microphone audio in a browser and sends frames to the Streamlit host. Hosting the app remotely therefore transmits call audio to that host. The current local-processing privacy assumption no longer applies. The application has no authentication, session isolation, configurable retention, or hosted-service security controls. Do not expose it as a multi-user production service on the basis of the localhost configuration.
+Run `npm install` and `npm run build` from `frontend/`, return to the root, then start `python -m uvicorn server.main:app --port 8000`. FastAPI serves `frontend/dist/` and the API from one origin. Model files must be provisioned locally; runtime downloads are disabled.
 
-The repository has no FastAPI application, React client, container/service manifest, deployment pipeline, or production hosting configuration.
-
-## Planned deployment
-
-**Planned:** Design and review a FastAPI + React/Tailwind deployment, including authentication, TLS and network boundaries, audio transport, per-session isolation, CPU/resource limits, model provisioning, summary storage and deletion, observability, and rollback. Deployment procedures and hosting claims should be updated only after those components exist and are verified.
+REST call/action routes require a JWT secret and operator accounts. Apply migrations with `alembic upgrade head` before using database routes. WebSocket routes remain unauthenticated and event subscribers are not session-isolated. Do not expose the service publicly without access controls, TLS, storage-retention policy, backups, and monitoring.

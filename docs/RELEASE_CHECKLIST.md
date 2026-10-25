@@ -1,44 +1,32 @@
 # Security and product release checklist
 
 **Review date:** 2026-10-25  
-**Overall result:** **FAIL — not release-ready for operational use.** Live-call audio and committed-secret checks pass within the scope below. Advisory marking is not explicit on every output, and local test/deployment evidence is incomplete.
+**Scope:** Local React + FastAPI application after removing the legacy UI.
 
-## 1. Raw audio persistence — PASS for live-call runtime; offline dataset caveat
+## Audio persistence — PASS for live runtime
 
-- `live.py` stores incoming samples in a bounded in-memory buffer and clears it when the pipeline stops. `backend/app.py` passes decoded PCM16 frames to the in-memory pipeline and ASR session; it has no audio file/database write path.
-- `backend/models.py` has no audio/blob column. `backend/schemas.py` defines an allow-listed `SummaryRequest`; `tests/test_storage_api.py` rejects an extra `audio` field (that API test could not be collected in the current local environment because SQLAlchemy/Alembic are absent).
-- Streamlit saves audio-free JSON summaries; Docker mounts the model read-only and database volume separately. The WebSocket event contract sends scores/indicators, not waveform samples.
-- **Scope caveat:** `ml/augment.py` writes WAV augmentation derivatives from an operator-supplied dataset to the chosen output directory. This utility is offline and is not wired to live microphone capture. Do not treat the whole repository as a no-audio-files training workspace.
-- No claim is made that process-memory samples are securely erased; a worker may retain an in-flight local window briefly after stop, as documented in `SECURITY.md`.
+`LiveAudioBuffer` stores a bounded rolling window in process memory and `backend/app.py` stops the pipeline and transcriber in the audio socket's `finally` block. No SQL model/schema or summary request accepts raw audio. `tests/test_storage_api.py` checks summary payload validation. Offline `ml/augment.py` is separate and can write derived dataset WAV files when an operator explicitly runs it. Immediate secure erasure of all in-flight memory copies is not guaranteed.
 
-## 2. Committed secrets — PASS based on repository scan
+## Secrets — source-level scan only
 
-- `git ls-files` contains `.env.example`, but no `.env`, private-key file, or credentials file. `.env.example` contains blank `JWT_SECRET_KEY`/`ASR_MODEL_PATH` values and non-secret local defaults.
-- The tracked test code contains a fixed `test-secret-key-with-at-least-32-bytes` fixture for JWT tests; it is explicitly a test value, not a production credential.
-- A repository text scan found no populated credential assignments. No scan can establish whether a secret was committed in earlier Git history; review history separately if the repository was ever public with real credentials.
+The tracked `.env.example` is an example, not a credential store; the JWT test fixture is a dummy test string. This review did not scan all prior Git history for secrets. The protected environment example and model-verification manifest were not modified.
 
-## 3. Advisory labels — FAIL (inconsistent at field/output level)
+## Advisory outputs — PARTIAL
 
-- React UI labels priority, urgency, insight, chart, transcript, and relevant keyword content as **Advisory**, and displays the non-decision disclaimer (`frontend/src/App.tsx`, `frontend/src/Charts.tsx`).
-- Streamlit has a page-level disclaimer and calls the raw label “uncalibrated” and attention “indicative” (`app.py`), but the individual distress/nervousness metrics and saved summary peak fields do not consistently carry an explicit Advisory label/marker.
-- FastAPI `AnalysisEvent` returns scores, indicators, attention category, priority, and urgency without a top-level advisory marker or per-field descriptions that clients can rely on. `AnalysisErrorEvent` and the saved JSON/SQL summary contracts likewise have no advisory field. API docs say outputs are advisory, but client consumers can receive unlabeled values.
-- **Release action:** add a machine-readable advisory designation to analysis/summary contracts and make every rendered Streamlit metric/summary explicitly advisory; add contract/UI tests that assert the designation. Do not represent priority as a determination or action instruction.
+The React UI labels model-derived insight content advisory and displays the non-decision disclaimer. The API still sends numeric emotion scores, indicators, category, and priority fields without a top-level machine-readable advisory marker. API consumers must follow `API.md` and treat all such values as advisory and uncalibrated. Do not use them as determinations or dispatch decisions.
 
-## 4. Documentation/code alignment — PASS after this review's updates, with known planned gaps
+## Runtime and verification — PASS with stated limits
 
-- Updated `README.md`, `ARCHITECTURE.md`, `DATA.md`, `DATA_DICTIONARY.md`, `LIMITATIONS.md`, `RUNBOOK.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `DECISIONS.md`, `EVALUATION.md`, `PROMPTS.md`, `SCHEMA.md`, `DEPLOYMENT.md`, `BRAIN.md`, `docs/AUDIT.md`, and `docs/ui/UI_SPEC.md` to describe the existing FastAPI/React/database/ML/Docker components and distinguish live-call capture from offline dataset augmentation.
-- `docs/AUDIT.md` now identifies its original Streamlit-only findings and 17-test result as historical and adds current-state evidence. `docs/ui/UI_SPEC.md` identifies the implemented React demo separately from planned/unsupported operational integrations.
-- Remaining limitations are identified as Planned or incomplete: unauthenticated/global WebSocket events, demo-only React actions, no automatic retention/deletion, no validated model metrics, and no production deployment hardening.
+- A fresh Python 3.12 virtual environment installed `requirements.txt` successfully.
+- `python -m pytest -v`: 62 passed.
+- `npm install`: completed; npm reported an install-script approval warning for esbuild, but the build succeeded.
+- `npm run build`: passed.
+- `npm test`: 10 passed.
+- Uvicorn served `/health` and `/` with HTTP 200 on port 8017. Attempts to use port 8000 in this environment failed because it was occupied during the check.
+- Model behavior was not changed. `MODEL_VERIFICATION.json` is protected and unchanged from `pre-cleanup`.
 
-## 5. TASKS.md — PASS
+A recursive search found permitted history/report mentions and unavoidable protected `.env.example`/`MODEL_VERIFICATION.json` matches. Git metadata also records the requested branch and tag. These exceptions prevent a literal whole-tree search from matching only two documentation files while honoring the protected-file and history requirements.
 
-`TASKS.md` now marks initial audit/docs/backend/frontend/live-audio/priority phases complete, leaves storage governance, dataset/provenance, full QA, and production DevOps open, and states the verification limits. This is consistent with the implementation and `TODO.md`.
+## Remaining release risks
 
-## Verification evidence and release blockers
-
-- Latest available focused Python run: **48 passed** with API/storage test modules excluded. Full pytest collection is blocked locally because SQLAlchemy and Alembic are missing.
-- Frontend lint, Vitest (10 tests), and production build passed in the current local environment. Playwright, k6, Docker build/startup, Ruff, and Mypy were not verified locally. CI is configured for Python Ruff/Mypy/pytest and frontend lint/test/build.
-- `python -m compileall`, YAML parsing, and `git diff --check` passed during the latest configuration/review checks.
-- No model accuracy, fairness, privacy-erasure, or production-readiness conclusion follows from these checks.
-
-**Decision:** Do not present this as an operational release until the advisory-label gap is closed and the dependency-complete API, browser, container, and security checks have evidence in CI or an authorized deployment environment.
+WebSocket audio/events remain unauthenticated and globally broadcast; REST calls require JWT and per-call read isolation is incomplete. Retention/deletion, backups, hosted TLS/network controls, real-model accuracy, microphone hardware, and CPU latency have not been validated. See [LIMITATIONS.md](../LIMITATIONS.md), [SECURITY.md](../SECURITY.md), and [TEST_PLAN.md](TEST_PLAN.md).

@@ -3,6 +3,7 @@ import time
 
 import numpy as np
 import pytest
+from fastapi.testclient import TestClient
 
 from backend.app import build_snapshot_events, create_app, decode_pcm16_chunk
 from backend.events import EventBroker
@@ -41,10 +42,28 @@ def test_health_reports_pinned_model_without_loading_it():
     }
 
 
+def test_root_redirects_to_api_docs():
+    with TestClient(create_app()) as client:
+        response = client.get("/", follow_redirects=False)
+
+    assert response.status_code == 307
+    assert response.headers["location"] == "/docs"
+
+
 def test_websocket_routes_are_registered():
     paths = {getattr(route, "path", None) for route in create_app().routes}
     assert "/ws/audio" in paths
     assert "/ws/events" in paths
+
+
+def test_audio_socket_announces_session_id_before_audio_frames():
+    app = create_app(model_factory=SyntheticModel)
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws/audio") as websocket:
+            message = websocket.receive_json()
+
+    assert message["type"] == "session_started"
+    assert message["session_id"]
 
 
 def test_event_broker_fans_out_audio_free_events():

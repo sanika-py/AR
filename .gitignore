@@ -3,13 +3,13 @@
 __pycache__/
 *.py[cod]
 .env
-.streamlit/secrets.toml
 *.pt
 *.pth
 *.safetensors
 *.ckpt
 *.onnx
 .env.*
+!.env.example
 .pytest_cache/
 .cache/
 .tmp/
@@ -18,4 +18,9 @@ models/
 model_cache/
 huggingface_cache/
 .awazrakshak-data/
+node_modules/
+frontend/dist/
+frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
 .DS_Store

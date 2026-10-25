@@ -9,10 +9,12 @@ from collections.abc import Callable
 
 import numpy as np
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import RedirectResponse
 
 from config import (
     API_HOST,
     API_PORT,
+    ASR_ENABLED,
     LIVE_UPDATE_INTERVAL_SECONDS,
     MODEL_ID,
     MODEL_REVISION,
@@ -22,11 +24,16 @@ from engine import ModelBundle, load_model
 from live import LiveCallPipeline
 
 from backend.events import EventBroker
+from backend.core.priority import assess_priority
+from backend.core.asr import LiveTranscriber
+from backend.routes import router as storage_router
 from backend.schemas import (
     AnalysisErrorEvent,
     AnalysisEvent,
     AttentionTransitionEvent,
+    AudioSessionStartedEvent,
     HealthResponse,
+    TranscriptPartialEvent,
 )
 
 
@@ -45,6 +52,12 @@ def create_app(
     )
     app.state.event_broker = EventBroker()
     app.state.model_factory = model_factory or _load_configured_model
+    app.include_router(storage_router)
+
+    @app.get("/", include_in_schema=False)
+    async def root() -> RedirectResponse:
+        """Send browser visits to the interactive API documentation."""
+        return RedirectResponse(url="/docs")
 
     @app.get("/health", response_model=HealthResponse)
     async def health() -> HealthResponse:
@@ -81,6 +94,14 @@ def create_app(
         """Accept binary little-endian PCM16 mono frames at 16 kHz."""
         await websocket.accept()
         session_id = str(uuid.uuid4())
+        await websocket.send_json(
+            AudioSessionStartedEvent(
+                session_id=session_id,
+                asr_enabled=ASR_ENABLED,
+            ).model_dump()
+        )
+        transcriber = LiveTranscriber(enabled=ASR_ENABLED)
+        transcriber.start()
         pipeline = LiveCallPipeline(
             websocket.app.state.model_factory,
             update_interval=LIVE_UPDATE_INTERVAL_SECONDS,
@@ -89,6 +110,7 @@ def create_app(
         publisher = asyncio.create_task(
             _publish_pipeline_events(
                 pipeline,
+                transcriber,
                 session_id,
                 websocket.app.state.event_broker,
             )
@@ -114,35 +136,64 @@ def create_app(
                     )
                     break
                 pipeline.add_audio(samples, MODEL_SAMPLE_RATE)
+                transcriber.add_audio(samples)
         except WebSocketDisconnect:
             pass
         finally:
             publisher.cancel()
             await asyncio.gather(publisher, return_exceptions=True)
             pipeline.stop()
+            transcriber.stop()
 
     return app
 
 
 async def _publish_pipeline_events(
     pipeline: LiveCallPipeline,
+    transcriber: LiveTranscriber,
     session_id: str,
     broker: EventBroker,
 ) -> None:
     last_elapsed: float | None = None
     seen_transitions: set[tuple[float, str, str]] = set()
     last_error: str | None = None
+    last_asr_revision = 0
+    last_asr_error: str | None = None
     while True:
+        asr_snapshot = transcriber.snapshot()
+        transcript = asr_snapshot["latest"]
+        keyword_hits = transcript["keyword_hits"] if transcript is not None else []
         snapshot = pipeline.snapshot()
         events, last_elapsed, last_error = build_snapshot_events(
             snapshot,
             session_id,
+            keyword_hits=keyword_hits,
             last_elapsed=last_elapsed,
             last_error=last_error,
             seen_transitions=seen_transitions,
         )
         for event in events:
             await broker.publish(event)
+        if transcript is not None and asr_snapshot["revision"] != last_asr_revision:
+            await broker.publish(
+                TranscriptPartialEvent(
+                    session_id=session_id,
+                    **transcript,
+                ).model_dump(mode="json")
+            )
+            last_asr_revision = asr_snapshot["revision"]
+            last_asr_error = None
+        asr_error = asr_snapshot["error"]
+        if asr_error and asr_error != last_asr_error:
+            await broker.publish(
+                TranscriptPartialEvent(
+                    session_id=session_id,
+                    text="",
+                    status="error",
+                    message=asr_error,
+                ).model_dump(mode="json")
+            )
+            last_asr_error = asr_error
         await asyncio.sleep(0.05)
 
 
@@ -150,6 +201,7 @@ def build_snapshot_events(
     snapshot: dict,
     session_id: str,
     *,
+    keyword_hits: list[str] | tuple[str, ...] = (),
     last_elapsed: float | None = None,
     last_error: str | None = None,
     seen_transitions: set[tuple[float, str, str]] | None = None,
@@ -159,6 +211,11 @@ def build_snapshot_events(
     events: list[dict] = []
     latest = snapshot["latest"]
     if latest is not None and latest["elapsed"] != last_elapsed:
+        priority = assess_priority(
+            latest["indicators"]["distress_indicator"],
+            latest["indicators"]["nervousness_indicator"],
+            keyword_hits,
+        )
         event = AnalysisEvent(
             session_id=session_id,
             elapsed=latest["elapsed"],
@@ -167,6 +224,10 @@ def build_snapshot_events(
             quality_flags=latest["quality_flags"],
             low_confidence=latest["low_confidence"],
             category=latest["category"],
+            priority=priority.priority,
+            urgency_score=priority.urgency_score,
+            priority_reasons=list(priority.reasons),
+            priority_guidance=priority.guidance,
         )
         events.append(event.model_dump(mode="json"))
         last_elapsed = latest["elapsed"]

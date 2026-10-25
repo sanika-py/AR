@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+@theme {
+  --color-canvas: #f4f8f8;
+  --color-surface: #e3eeee;
+  --color-slate: #24383b;
+  --color-teal: #4f8f94;
+  --color-teal-strong: #376f74;
+  --color-line: #c9dcdc;
+  --color-sage: #8fb8a8;
+  --color-soft-amber: #e8c37a;
+  --color-orange: #d98a55;
+  --color-muted-crimson: #bd706a;
+  --color-priority-p1: #bd706a;
+  --color-priority-p2: #d98a55;
+  --color-priority-p3: #e8c37a;
+  --color-priority-p4: #8fb8a8;
+  --color-slate-muted: #526a6d;
+}
+
+:root {
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  color: var(--color-slate);
+  background: var(--color-canvas);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+}
+
+button:focus-visible {
+  outline: 3px solid var(--color-teal);
+  outline-offset: 2px;
+}
+
+textarea:focus-visible,
+select:focus-visible {
+  outline: 3px solid var(--color-teal);
+  outline-offset: 2px;
+}
+
+.trajectory-chart .u-legend {
+  font-size: 11px;
+}

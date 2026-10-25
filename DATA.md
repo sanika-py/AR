@@ -1,24 +1,14 @@
-# Data Handling
+# Data
 
-Source of truth: [BRAIN.md](BRAIN.md). Current implementation details are summarized in [docs/AUDIT.md](docs/AUDIT.md).
+Source of truth: [BRAIN.md](BRAIN.md).
 
-## Data types and path
-
-| Data | Current handling |
+| Data | Runtime handling |
 |---|---|
-| Browser microphone frames | Received by the Streamlit host through WebRTC during an authorized recording. |
-| Rolling audio | Downmixed and resampled by `live.py`; at most 30 seconds retained in process memory. |
-| Analysis window | Latest 3 seconds at 16 kHz mono; considered every 1.5 seconds. Digital silence is skipped. |
-| Model scores and quality flags | Held in the live pipeline's in-memory insight history while the call is active. |
-| Call summary | Audio-free JSON written under `.awazrakshak-data/summaries/` and offered as a browser download. |
-| Model files | Read from a user-provided local Hugging Face cache or snapshot; not downloaded at runtime. |
+| Browser microphone audio | Captured only after consent and sent as mono PCM16 at 16 kHz to the FastAPI host. |
+| Live audio buffer | Bounded to 30 seconds in process memory and cleared when the audio socket disconnects. |
+| Emotion scores and indicators | Validated analysis events sent over `/ws/events`; no audio samples are included. |
+| Optional transcript and keyword hits | In-memory snapshots only when local ASR is enabled; the stream is cleared on disconnect. |
+| Persisted records | SQL database stores audio-free calls, summaries, flags, notes, and audit entries. |
+| Offline training inputs | Explicit operator-supplied datasets; offline augmentation may write derived WAV files to the chosen destination. |
 
-## Retention and access
-
-The ring buffer is cleared when the pipeline stops. Summary JSON remains on local disk until the operator removes it; the application has no configured summary retention or deletion schedule. Summaries are not encrypted by the application and contain call timing, category/indicator peaks, quality flags, and model identity. Do not include caller names or identifiers in the current summary format.
-
-The current local-processing posture assumes a trusted local host. If the app is hosted, browser audio crosses the network to that host. Hosted use is not equivalent to local-only processing and needs a documented access, transport, storage, and deletion policy before use.
-
-## Planned data work
-
-**Planned:** Define a versioned schema, retention/deletion controls, access controls, storage threat model, and consent/audit requirements before introducing a database or multi-user service. Any training corpus or feedback collection is also Planned and must not be inferred from the current application.
+Live-call audio is never written to disk by the app. Database retention/deletion and hosted encryption are not configured. A remote deployment receives browser audio over the network; keep the service local unless that transfer is approved.

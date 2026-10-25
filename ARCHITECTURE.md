@@ -4,29 +4,27 @@ Source of truth: [BRAIN.md](BRAIN.md). Repository findings: [docs/AUDIT.md](docs
 
 ## Current system
 
-AwazRakshak is a single-page Streamlit application. `app.py` owns page rendering, consent, local model-path selection, session state, WebRTC microphone setup, live display, and audio-free summary persistence/download. `live.py` accepts microphone frames, downmixes and resamples them, retains a bounded 30-second ring buffer, and coordinates CPU inference on a background thread. `engine.py` resolves a local pinned snapshot, verifies its expected files, loads the classifier, screens 3-second windows, and validates seven scores. `signals.py` derives and smooths indicators and applies attention-band hysteresis. `config.py` contains model identity, label ordering, timing, weights, and provisional thresholds.
+The only user interface is the React + TypeScript + Tailwind application in `frontend/`, built by Vite. It defaults to synthetic demo data; `VITE_USE_MOCK=false` enables consent-gated browser microphone capture. `server/main.py` exposes the existing FastAPI application and serves the built `frontend/dist/` when present. `backend/app.py` provides `/health`, `/ws/audio`, and `/ws/events`, and includes the protected REST router. `backend/routes.py`, `backend/models.py`, `backend/database.py`, and Alembic migrations implement audio-free records and audited officer actions.
 
 ```text
-Browser microphone
-       │ WebRTC audio frames
-       ▼
-app.py ── consent, Streamlit session, display, summary
-       │
-       ▼
-live.py ── bounded memory buffer ── background worker
-       │                              │
-       │                              ├── engine.py ── local verified model
-       │                              └── signals.py ── derived indicators/bands
-       ▼
-audio-free summary JSON on local disk / browser download
+Browser UI (frontend/)
+  ├── GET /health
+  ├── WS /ws/audio ── PCM16 mono, 16 kHz ──┐
+  └── WS /ws/events ◀── advisory events     │
+                                            ▼
+server/main.py ── backend/app.py ── LiveCallPipeline (memory only)
+                                      ├── engine.py ── pinned local model
+                                      └── signals.py ── indicators and bands
 ```
 
-The inference path uses mono 16 kHz audio. A 3-second window is considered every 1.5 seconds. Digital silence is skipped; other windows can be scored with quality flags. Model output is a raw seven-label score vector. Distress and nervousness are derived indicators, smoothed with EMA alpha 0.35. Attention bands are provisional and require two consecutive windows to change.
+The React client uses an AudioWorklet to produce approximately 100 ms PCM16 chunks. `live.py` keeps at most 30 seconds in a bounded in-memory buffer and runs a 3-second window every 1.5 seconds. Digital silence is skipped. Other screened windows can be scored with quality flags. No live audio is written to disk.
+
+`engine.py` and `signals.py` provide compatibility exports from `backend/core/`. `config.py` remains the source of model identity, ordered labels, timing, indicator weights, and provisional thresholds. Optional ASR and the `ml/` training scripts are separate local or offline paths; model downloads are disabled at runtime.
 
 ## Runtime and trust boundaries
 
-The browser supplies microphone frames to the Streamlit host. In a local trusted run, that host is the user's machine. The application stores raw samples only in process memory, clears its ring buffer on stop, and writes an audio-free JSON summary under `.awazrakshak-data/summaries/`. Model files must already exist locally and match the pin/integrity checks; runtime model downloads and remote-code execution are disabled.
+The browser sends audio to the host running FastAPI. A remote deployment therefore transmits microphone audio to that host. WebSocket audio and events are currently unauthenticated and event clients are not session-filtered. REST actions require JWT roles. SQL storage accepts summary fields, notes, flags, and audit records, never raw audio. The live buffer is cleared when its socket disconnects. Explicit offline ML augmentation can write dataset-derived audio files to its operator-selected output directory; it is not called by live inference.
 
-## Planned migration
+## Limitations
 
-**Planned:** Separate transport-independent inference and signal logic from the Streamlit entry point; expose a FastAPI service; implement a React and Tailwind interface; define versioned request/response schemas and session lifecycle; and design authentication, storage, and deployment boundaries before enabling those capabilities. No FastAPI routes, React client, persistent call database, or authentication layer currently exists. The audio transport, session isolation, cancellation, concurrency limits, and hosted privacy model need explicit design before a remote service is used.
+Model scores and derived indicators are uncalibrated advisory signals. Priority thresholds are provisional. The frontend's action controls remain demo-only and are not connected to authenticated REST actions. Per-call read isolation, WebSocket authentication, database retention/deletion, hosted TLS/secrets, and production operations remain incomplete.

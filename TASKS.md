@@ -2,13 +2,13 @@
 
 Complete one task per branch and update this checklist as phases are finished.
 
-- [ ] **1. Audit** — map the existing Streamlit behavior, data flow, model verification, and deployment constraints against `BRAIN.md`.
-- [ ] **2. Docs** — document the target architecture, local model setup, privacy boundaries, advisory output language, and operator workflow.
-- [ ] **3. Backend** — implement the FastAPI service layer while preserving pinned local inference, input validation, and fail-closed model verification.
-- [ ] **4. Frontend** — build the React + Tailwind interface with consent, status, accessible live indicators, and advisory labels.
-- [ ] **5. Live audio** — connect browser microphone streaming to bounded in-memory buffering and background windowed inference; never persist raw audio.
-- [ ] **6. Priority bands** — implement provisional attention/priority bands, smoothing, hysteresis, and explicit non-decision language.
-- [ ] **7. Storage/actions/auth** — define audio-free summary storage, operator actions, access controls, and retention behavior.
-- [ ] **8. Training** — determine whether training/labeling is in scope; isolate any approved dataset and training work from runtime inference.
-- [ ] **9. QA** — cover score validation, indicators, smoothing, hysteresis, buffering, API/UI behavior, privacy properties, and deployment checks.
-- [ ] **10. DevOps** — establish reproducible local setup, CI, pinned dependencies, secrets handling, and deployment that respects the local-model and audio-privacy requirements.
+- [x] **1. Audit** — map legacy UI framework/FastAPI/React behavior, data flows, model verification, and deployment/privacy constraints in `docs/AUDIT.md` and `docs/TEST_PLAN.md`.
+- [x] **2. Docs** — document current architecture, local model setup, privacy boundaries, advisory language, and operator workflow. Ongoing doc/code alignment remains required.
+- [x] **3. Backend (initial)** — FastAPI service, Pydantic contracts, local pinned-model inference, SQLAlchemy/Alembic schema, JWT roles, and audited REST actions implemented. WebSocket auth/session isolation remain open.
+- [x] **4. Frontend (initial)** — React + Tailwind dashboard and consent-gated microphone flow implemented with advisory labels. REST action integration remains open.
+- [x] **5. Live audio (initial)** — browser PCM16 streaming reaches bounded in-memory background inference; no live-call audio persistence. WebSocket identity/isolation and real-device verification remain open.
+- [x] **6. Priority bands (provisional)** — configured indicator/keyword mappings, reasons, guidance, and advisory language implemented; thresholds are not validated.
+- [ ] **7. Storage/actions/auth (partial)** — audio-free tables, roles, and audit actions exist. Retention/deletion, per-call read isolation, and hosted security controls remain open.
+- [ ] **8. Training (offline utilities only)** — scripts exist, but no governed dataset, approved training, completed evaluation, or provenance/right review is complete.
+- [ ] **9. QA (partial)** — synthetic unit/API/browser/load tests are present. Full dependency-complete pytest, browser E2E, k6, security assessment, real-model evaluation, and coverage measurement remain unverified; see `docs/TEST_PLAN.md` and `docs/RELEASE_CHECKLIST.md`.
+- [ ] **10. DevOps (local/demo only)** — Dockerfiles, Compose model mount/startup hash check, CI, and pre-commit are configured. Container execution and production deployment, backups, monitoring, and rollback remain unverified/planned.

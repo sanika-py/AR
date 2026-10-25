@@ -3,12 +3,26 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 MODEL_ID = "Dpngtm/wav2vec2-emotion-recognition"
 MODEL_REVISION = "033a5751a5bbe5b0b67c2c71e6102c38de35a346"
 MODEL_LOCAL_PATH_ENV = "AWAZRAKSHAK_MODEL_PATH"
 API_HOST = os.environ.get("AWAZRAKSHAK_API_HOST", "127.0.0.1")
 API_PORT = int(os.environ.get("AWAZRAKSHAK_API_PORT", "8000"))
+
+ASR_ENABLED = os.environ.get("ASR_ENABLED", "false").strip().casefold() in {
+    "1", "true", "yes", "on"
+}
+ASR_MODEL_PATH = os.environ.get("ASR_MODEL_PATH", "").strip()
+ASR_MODEL_SIZE = "small"
+ASR_COMPUTE_TYPE = "int8"
+ASR_LANGUAGE = None  # Whisper auto-detects English, Hindi, Marathi, or another supported language.
+ASR_UPDATE_INTERVAL_SECONDS = 2.0
+ASR_WINDOW_SECONDS = 12.0
+ASR_KEYWORD_CONFIG_PATH = Path(__file__).with_name("backend") / "core" / "keywords.yaml"
+PROVISIONAL_ASR_KEYWORD_MATCH_THRESHOLD = 90
+PROVISIONAL_ASR_MIN_AUDIO_SECONDS = 2.0
 
 EXPECTED_ID2LABEL = {
     0: "angry",
@@ -47,6 +61,27 @@ PROVISIONAL_INDICATOR_WEIGHTS = {
 }
 PROVISIONAL_ATTENTION_THRESHOLDS = {"elevated": 0.35, "high": 0.65}
 LIVE_CATEGORY_THRESHOLDS = PROVISIONAL_ATTENTION_THRESHOLDS
+
+# Priority bands are provisional advisory groupings, not operational decisions.
+PROVISIONAL_PRIORITY_INDICATOR_THRESHOLDS = {
+    "P1": 0.80,
+    "P2": 0.60,
+    "P3": 0.35,
+}
+PROVISIONAL_PRIORITY_KEYWORD_BANDS = {
+    "immediate danger": "P1",
+    "threatened": "P1",
+    "extortion": "P2",
+    "otp shared": "P3",
+}
+PROVISIONAL_PRIORITY_INDICATOR_URGENCY_MIN = 1
+PROVISIONAL_PRIORITY_INDICATOR_URGENCY_MAX = 10
+PROVISIONAL_PRIORITY_KEYWORD_URGENCY_FLOORS = {
+    "P1": 9,
+    "P2": 7,
+    "P3": 4,
+    "P4": 1,
+}
 
 INDICATOR_FORMULAS = {
     "distress_indicator": "0.50 * fearful + 0.30 * sad + 0.20 * angry",

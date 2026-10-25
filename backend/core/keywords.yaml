@@ -1,0 +1,11 @@
+# Provisional phrase aliases. Matches are advisory review aids, not findings.
+- key: threatened
+  phrases: [threatened, threat, being threatened, धमकी, धमकाया, धमकी दी, धमकी मिली]
+- key: OTP shared
+  phrases: [OTP shared, shared OTP, told them my OTP, ओटीपी साझा किया, ओटीपी बताया, ओटीपी शेअर केला, ओटीपी सांगितला]
+- key: extortion
+  phrases: [extortion, blackmail, being blackmailed, जबरन वसूली, खंडणी]
+- key: money taken
+  phrases: [money taken, money was taken, पैसे ले लिए, पैसे काढले]
+- key: account access
+  phrases: [account accessed, account taken over, खाते में प्रवेश, खाते का नियंत्रण, खात्यात प्रवेश]
