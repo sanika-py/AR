@@ -18,6 +18,16 @@ python -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe -m streamlit run app.py
 ```
 
+## FastAPI backend
+
+The early backend can be run separately with:
+
+```powershell
+.\.venv\Scripts\python.exe -m backend.app
+```
+
+It exposes `GET /health`, `WS /ws/audio` for binary 16 kHz mono little-endian PCM16 chunks, and `WS /ws/events` for ephemeral analysis events. Audio is processed through the existing bounded in-memory pipeline and is not persisted. The default bind is `127.0.0.1:8000`; `AWAZRAKSHAK_API_HOST`, `AWAZRAKSHAK_API_PORT`, `AWAZRAKSHAK_LIVE_UPDATE_INTERVAL_SECONDS`, and the existing `AWAZRAKSHAK_MODEL_PATH` are read from the environment. The backend does not implement authentication; keep it local and do not expose it to an untrusted network.
+
 In the app, select the local model folder, confirm that you are authorised to analyse the call, and click **Start recording**. Allow microphone access in the browser. Click **Stop and save summary** when finished. The JSON summary is written to `.awazrakshak-data/summaries/` and can also be downloaded from the page. The summary contains no audio.
 
 ## Pinned local model
